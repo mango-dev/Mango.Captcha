@@ -1,0 +1,51 @@
+﻿
+@{
+    ViewBag.Title = "Captcha";
+}
+
+<h2>Captcha</h2>
+<div id="test" ></div>
+@section scripts
+{
+    <script src="/home/GetScripts"></script>
+    <script>
+        var mangoCaptcha;
+        document.getElementById("test").initCaptcha(function(m) {
+            mangoCaptcha = m;
+            refreshCaptcha();
+
+        });
+        document.getElementById("test").addEventListener("captcha_refresh",
+            function(event) {
+                refreshCaptcha();
+            });
+
+        document.getElementById("test").addEventListener("captcha_ok", function(event) {
+            var key = event.detail.key;
+            var selectValues = event.detail.selectValues;
+            $.ajax({
+                url: "/Home/ValidateCaptcha", // 目标资源
+                cache: false, //true 如果当前请求有缓存的话，直接使用缓存。如果该属性设置为 false，则每次都会向服务器请求
+                async: false, //默认是true，即为异步方式
+                data: { key, selectValues},
+                dataType: "json", // 服务器响应的数据类型
+                type: "POST", // 请求方式
+                success: function (data) {
+                    if (data.success) {
+                        alert('校验成功');
+                    } else {
+                        alert('校验失败');
+                        refreshCaptcha();
+                    }
+                }
+            });
+        });
+
+        function refreshCaptcha() {
+            $.get('/home/GetCaptcha',
+                function (result) {
+                    mangoCaptcha.loadImage("data:image/png;base64," + result.base64Img,result.key);
+                });
+        }
+    </script>
+}
