@@ -11,9 +11,8 @@ namespace Mango.Captcha.Core
 {
     public class MangoCaptcha
     {
-        private static readonly Dictionary<Guid, IList<int>> SelectValues;
-        private static readonly IList<CaptchaCategory> CaptchaCategories;
-        private static readonly IList<CaptchaImage> CaptchaImages;
+        private static IList<CaptchaCategory> _captchaCategories;
+        private static IList<CaptchaImage> _captchaImages;
         private static DateTime _lasTime;
         private static string _imageRepoPath;
         private static readonly RedisClientPoolManager RedisClientPoolManager;
@@ -21,9 +20,8 @@ namespace Mango.Captcha.Core
         static MangoCaptcha()
         {
             RedisClientPoolManager = MangoRedisHelper.GetDefault();
-            SelectValues = new Dictionary<Guid, IList<int>>();
-            CaptchaCategories = new List<CaptchaCategory>();
-            CaptchaImages = new List<CaptchaImage>();
+            _captchaCategories = new List<CaptchaCategory>();
+            _captchaImages = new List<CaptchaImage>();
         }
 
 
@@ -39,6 +37,9 @@ namespace Mango.Captcha.Core
             }
             _imageRepoPath = imageRepoPath;
             DirectoryInfo directoryInfo = new DirectoryInfo(imageRepoPath);
+            //清空列表
+            _captchaCategories = new List<CaptchaCategory>();
+            _captchaImages = new List<CaptchaImage>();
 
             foreach (var dir in directoryInfo.GetDirectories())
             {
@@ -56,10 +57,10 @@ namespace Mango.Captcha.Core
                         Path = fileInfo.FullName,
                         Category = category
                     };
-                    CaptchaImages.Add(tmp);
+                    _captchaImages.Add(tmp);
                     category.Images.Add(tmp);
                 }
-                CaptchaCategories.Add(category);
+                _captchaCategories.Add(category);
             }
 
             _lasTime = DateTime.Now;
@@ -73,18 +74,18 @@ namespace Mango.Captcha.Core
                 Init(_imageRepoPath);
             }
 
-            if (CaptchaCategories == null || CaptchaCategories.Count == 0)
+            if (_captchaCategories == null || _captchaCategories.Count == 0)
             {
                 throw new Exception("图片库路径配置不正确！");
             }
 
-            if (CaptchaImages == null || CaptchaImages.Count == 0)
+            if (_captchaImages == null || _captchaImages.Count == 0)
             {
                 throw new Exception("未在图片库中发现图片！");
             }
             //todo:过滤两条以上的分类
 
-            var c1 = CaptchaCategories.Where(a => a.Images.Count > 1).ToList();
+            var c1 = _captchaCategories.Where(a => a.Images.Count > 1).ToList();
 
             var c2 = RandomSortList(c1).ToList();
 
@@ -103,7 +104,7 @@ namespace Mango.Captcha.Core
                 });
 
             }
-            var allImages = RandomSortList(CaptchaImages.Where(a => a.Category != c2[0]).ToList());
+            var allImages = RandomSortList(_captchaImages.Where(a => a.Category != c2[0]).ToList());
 
             for (int i = 0; i < 7; i++)
             {
@@ -123,9 +124,7 @@ namespace Mango.Captcha.Core
                     selectValues.Add(i);
                 }
             }
-
-            SelectValues.Add(key, selectValues);
-
+            // 存储到Redis
             RedisClientPoolManager.AddDataSetListWithExpire("mango:captcha:" + key, selectValues.Select(a => a.ToString()).ToList(), 30);
 
             try
@@ -156,7 +155,7 @@ namespace Mango.Captcha.Core
                 throw new Exception("验证码已经过期");
             }
 
-            if (result.ResultType== RedisResultType.Failed)
+            if (result.ResultType == RedisResultType.Failed)
             {
                 throw new Exception("非法的验证码");
             }
